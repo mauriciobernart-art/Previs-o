@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Previsão do Tempo Completa</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Monitorador de previsão do tempo</h1>
+            <div class="location">Caxias do Sul, RS - Brasil</div>
+            <div class="date-display" id="current-date">Carregando data...</div>
+        </header>
+        <div class="day-navigation" id="day-navigation">
+        </div>
+        <div class="weather-content">
+            <div class="current-weather">
+                <div class="temperature-display">
+                    <div class="temperature-circle">
+                        <div class="temperature-value" id="current-temp">--°C</div>
+                    </div>
+                </div>
+                <div class="weather-desc" id="weather-desc">Carregando...</div>
+            </div>
+            
+            <div class="weather-details">
+                <div class="detail-item">
+                    <i class="fas fa-temperature-high"></i>
+                    <div>Sensação: <span id="feels-like">--°C</span></div>
+                </div>
+                <div class="detail-item">
+                    <i class="fas fa-cloud-rain"></i>
+                    <div>Precipitação: <span id="precipitation">-- mm</span></div>
+                </div>
+                <div class="detail-item">
+                    <i class="fas fa-tint"></i>
+                    <div>Prob. Chuva: <span id="precipitation-prob">--%</span></div>
+                </div>
+                <div class="detail-item">
+                    <i class="fas fa-sun"></i>
+                    <div>UV: <span id="uv-index">--</span></div>
+                </div>
+                <div class="detail-item">
+                    <i class="fas fa-sunrise"></i>
+                    <div>Nascer do Sol: <span id="sunrise">--:--</span></div>
+                </div>
+                <div class="detail-item">
+                    <i class="fas fa-sunset"></i>
+                    <div>Pôr do Sol: <span id="sunset">--:--</span></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="hourly-forecast">
+            <h2 class="hourly-title">Clima nas horas do dia:</h2>
+            <div class="hourly-container" id="hourly-forecast">
+                <div class="loading">Carregando previsão horária...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const apiUrl = 'https://api.open-meteo.com/v1/forecast?latitude=-29.1681&longitude=-51.1794&daily=sunrise,sunset,uv_index_max&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,rain&timezone=America/Sao_Paulo&forecast_days=10';
+            
+            const currentDateElement = document.getElementById('current-date');
+            const currentTempElement = document.getElementById('current-temp');
+            const weatherDescElement = document.getElementById('weather-desc');
+            const feelsLikeElement = document.getElementById('feels-like');
+            const precipitationElement = document.getElementById('precipitation');
+            const precipitationProbElement = document.getElementById('precipitation-prob');
+            const uvIndexElement = document.getElementById('uv-index');
+            const sunriseElement = document.getElementById('sunrise');
+            const sunsetElement = document.getElementById('sunset');
+            const hourlyForecastElement = document.getElementById('hourly-forecast');
+            const dayNavigationElement = document.getElementById('day-navigation');
+            
+            let weatherData = null;
+            let currentDayIndex = 0;
+            
+            function updateCurrentDate() {
+                const now = new Date();
+                const options = { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric'
+                };
+                currentDateElement.textContent = now.toLocaleDateString('pt-BR', options);
+            }
+            
+            async function fetchWeatherData() {
+                try {
+                    const response = await fetch(apiUrl);
+                    
+                    if (!response.ok) {
+                        throw new Error('Erro ao buscar dados meteorológicos');
+                    }
+                    
+                    weatherData = await response.json();
+                    createDayNavigation();
+                    updateWeatherUI(0);
+                } catch (error) {
+                    console.error('Erro:', error);
+                    dayNavigationElement.innerHTML = `
+                        <div class="error">
+                            Erro ao carregar dados: ${error.message}
+                        </div>
+                    `;
+                }
+            }
+            
+            function createDayNavigation() {
+                if (!weatherData || !weatherData.daily || !weatherData.daily.time) return;
+                
+                dayNavigationElement.innerHTML = '';
+                
+                weatherData.daily.time.forEach((date, index) => {
+                    const dayDate = new Date(date);
+                    const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                    const dayName = dayNames[dayDate.getDay()];
+                    const dayNumber = dayDate.getDate();
+                    const month = dayDate.getMonth() + 1;
+                    
+                    const button = document.createElement('button');
+                    button.classList.add('day-btn');
+                    if (index === 0) button.classList.add('active');
+                    
+                    button.innerHTML = `
+                        <div>${dayName}</div>
+                        <div>${dayNumber}/${month}</div>
+                    `;
+                    
+                    button.addEventListener('click', () => {
+                        document.querySelectorAll('.day-btn').forEach(btn => {
+                            btn.classList.remove('active');
+                        });
+                        
+                        button.classList.add('active');
+                        
+                        updateWeatherUI(index);
+                    });
+                    
+                    dayNavigationElement.appendChild(button);
+                });
+            }
+            
+            function updateWeatherUI(dayIndex) {
+                if (!weatherData) return;
+                
+                currentDayIndex = dayIndex;
+                
+                const daily = weatherData.daily;
+                const sunrise = new Date(daily.sunrise[dayIndex]);
+                const sunset = new Date(daily.sunset[dayIndex]);
+                const uvIndex = daily.uv_index_max[dayIndex];
+                
+                sunriseElement.textContent = `${sunrise.getHours().toString().padStart(2, '0')}:${sunrise.getMinutes().toString().padStart(2, '0')}`;
+                sunsetElement.textContent = `${sunset.getHours().toString().padStart(2, '0')}:${sunset.getMinutes().toString().padStart(2, '0')}`;
+                uvIndexElement.textContent = uvIndex;
+                
+                const dayDate = new Date(daily.time[dayIndex]);
+                const options = { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric'
+                };
+                currentDateElement.textContent = dayDate.toLocaleDateString('pt-BR', options);
+                
+                const hourly = weatherData.hourly;
+                const targetHour = 12; 
+                const dayStartIndex = dayIndex * 24;
+                
+                let closestIndex = dayStartIndex + targetHour;
+                if (closestIndex >= hourly.time.length) {
+                    closestIndex = hourly.time.length - 1;
+                }
+                
+                const currentTemp = hourly.temperature_2m[closestIndex];
+                const feelsLike = hourly.apparent_temperature[closestIndex];
+                const precipitationProb = hourly.precipitation_probability[closestIndex];
+                const precipitation = hourly.precipitation[closestIndex];
+                
+                currentTempElement.textContent = `${currentTemp}°C`;
+                
+                let weatherDescription = '';
+                
+                if (currentTemp < 10) {
+                    weatherDescription = 'Frio';
+                } else if (currentTemp < 20) {
+                    weatherDescription = 'Ambiente';
+                } else if (currentTemp < 30) {
+                    weatherDescription = 'Agradável';
+                } else {
+                    weatherDescription = 'Quente';
+                }
+                
+                weatherDescElement.textContent = weatherDescription;
+                feelsLikeElement.textContent = `${feelsLike}°C`;
+                precipitationProbElement.textContent = `${precipitationProb}%`;
+                precipitationElement.textContent = `${precipitation} mm`;
+                
+                updateHourlyForecast(dayIndex);
+            }
+            
+            function updateHourlyForecast(dayIndex) {
+                hourlyForecastElement.innerHTML = '';
+                
+                const hourly = weatherData.hourly;
+                const startIndex = dayIndex * 24;
+                const endIndex = Math.min(startIndex + 24, hourly.time.length);
+                
+                for (let i = startIndex; i < endIndex; i++) {
+                    const forecastTime = new Date(hourly.time[i]);
+                    const hours = forecastTime.getHours().toString().padStart(2, '0');
+                    const temp = hourly.temperature_2m[i];
+                    const apparentTemp = hourly.apparent_temperature[i];
+                    const precipProb = hourly.precipitation_probability[i];
+                    
+                    let iconClass = 'fa-sun';
+                    if (precipProb > 70) iconClass = 'fa-cloud-showers-heavy';
+                    else if (precipProb > 30) iconClass = 'fa-cloud-sun';
+                    else if (precipProb > 10) iconClass = 'fa-cloud';
+                    
+                    const forecastItem = document.createElement('div');
+                    forecastItem.classList.add('hourly-item');
+                    
+                    forecastItem.innerHTML = `
+                        <div class="hourly-time">${hours}h</div>
+                        <div><i class="fas ${iconClass}"></i></div>
+                        <div class="hourly-temp">${temp}°C</div>
+                        <div>${precipProb}%</div>
+                    `;
+                    
+                    hourlyForecastElement.appendChild(forecastItem);
+                }
+            }
+            
+            updateCurrentDate();
+            fetchWeatherData();
+        });
+    </script>
+</body>
+</html>
